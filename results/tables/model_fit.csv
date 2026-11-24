@@ -1,0 +1,9 @@
+"model","specification","n","rank","n_columns","residual_df","R2","adjusted_R2","max_leverage","unit_leverage_n","OLS_available","HC1_available","HC3_available"
+"M1","red",70,2,2,68,0.000160157775262906,-0.0145433693162773,0.04,0,TRUE,TRUE,TRUE
+"M2","red + age_range + gender + political_preference",70,9,9,61,0.116824433923587,0.000998130175860479,1,2,TRUE,TRUE,FALSE
+"M3","ai",70,2,2,68,0.0215021740425278,0.00711250013138864,0.0285714285714286,0,TRUE,TRUE,TRUE
+"M4","ai + age_range + gender + political_preference",70,9,9,61,0.15763667700571,0.0471627985802292,1,2,TRUE,TRUE,FALSE
+"M5","red + ai",70,3,3,67,0.0217923572649352,-0.00740787087641004,0.055465175394001,0,TRUE,TRUE,TRUE
+"M6","red + ai + red_ai",70,4,4,66,0.0292592897170947,-0.0148652880230373,0.0833333333333333,0,TRUE,TRUE,TRUE
+"M7","red + ai + age_range + gender + political_preference",70,10,10,60,0.15832685070937,0.032075878315776,1,2,TRUE,TRUE,FALSE
+"M8","red + ai + red_ai + age_range + gender + political_preference",70,11,11,59,0.16143086589434,0.0193005041815165,1,2,TRUE,TRUE,FALSE

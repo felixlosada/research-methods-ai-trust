@@ -1,0 +1,5 @@
+"outcome","condition","submissions","n","mean","sd","median","min","max"
+"trust_candidate","non_ai_blue",22,22,5.04545454545455,1.73142585686927,5,1,8
+"trust_candidate","ai_blue",23,23,4.73913043478261,2.13663693483576,5,1,8
+"trust_candidate","non_ai_red",13,13,5.30769230769231,1.60128153805087,6,1,7
+"trust_candidate","ai_red",12,12,4.33333333333333,1.87487373312218,4,1,7
