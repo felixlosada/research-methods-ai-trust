@@ -1,17 +1,5 @@
-# Does AI Change Candidate Trust? The Role of Advertisement Source and Background Color
-# Run in RStudio with Source, or: Rscript final_analysis.R [input_csv] [output_directory]
-# Uses R 4.x and its standard packages. Default output directory: results.
-#
-# Professor's instructions: candidate trust, binary treatment coding, eight models
-# in order, an eight-column table, and four condition predictions from the interaction.
-# Project decisions: categorical controls, common sample, HC1 for figures, HC3
-# sensitivity, M8 standardization, equal-weight contrasts, graphics and packaging.
-#
-# Input is the final CSV rebuilt from the response workbook by scripts/prepare_workbook.py.
-# Team-confirmed tabs: 1 AI/blue, 2 AI/red, 3 non-AI/blue, 4 non-AI/red.
-# The earlier CSV supplies a private comparison baseline and stable IDs only.
+# Uses R 4.x and its standard packages. 
 
-# 1. Validate the analysis file before making any model or plot ----------------
 args <- if (interactive()) character() else commandArgs(trailingOnly = TRUE)
 if (length(args) > 2L) stop("Usage: Rscript final_analysis.R [input_csv] [output_directory]")
 input <- if (length(args) >= 1L) args[1] else file.path("data", "survey_data.csv")
@@ -47,7 +35,6 @@ for (v in outcomes) {
 if (anyNA(raw$n_outcomes) || any(raw$n_outcomes != rowSums(!is.na(raw[outcomes]))))
   stop("n_outcomes disagrees with the three outcome fields.")
 
-# These are the verified label spellings. Explicit refusal is a recorded category.
 allowed <- list(age_range = c("18-24", "25-34", "45-54"),
                 gender = c("Female", "Male", "Non-Binary"),
                 political_preference = c("Democratic", "Conservative", "Moderate", "Prefer Not to Say"))
@@ -56,8 +43,6 @@ for (v in demos) {
   if (length(unknown)) stop("Unrecognised ", v, " label(s): ", paste(unknown, collapse = ", "))
 }
 
-# Eligibility uses trust and all adjustment variables, even in unadjusted models.
-# Policy belief and interest are separate outcomes and cannot exclude a trust score.
 eligible <- complete.cases(raw[c("trust_candidate", demos)])
 d <- raw[eligible, , drop = FALSE]
 N <- nrow(d)
@@ -70,7 +55,6 @@ factor_reference <- function(x, reference) {
 for (v in demos) d[[v]] <- factor_reference(d[[v]], allowed[[v]][1L])
 options(contrasts = c("contr.treatment", "contr.poly"))
 
-# Professor's binary coding. Red = 0 and AI = 0 identifies blue/non-AI.
 d$red <- as.integer(d$background == "red")
 d$ai <- as.integer(d$ad_source == "ai")
 d$red_ai <- d$red * d$ai
@@ -88,15 +72,12 @@ for (path in c(tab, poster, supp)) {
 }
 write_table <- function(x, name) write.csv(x, file.path(tab, name), row.names = FALSE, na = "NA")
 
-# 2. Cell sizes and descriptive summaries ------------------------------------
 total_counts <- as.integer(table(factor(raw$condition, levels = cell_codes)))
 write_table(data.frame(condition = cell_codes, submissions = total_counts, model_n = counts,
                        excluded = total_counts-counts), "condition_counts.csv")
 missing_fields <- data.frame(field = required, n_missing = colSums(is.na(raw[required])))
 write_table(missing_fields, "missingness.csv")
 
-# Compute descriptives using available answers to each question, independently of
-# complete-case selection for the regressions. Separately export exploratory outcomes.
 descriptive <- do.call(rbind, lapply(outcomes, function(y) {
   do.call(rbind, lapply(cell_codes, function(g) {
     z <- raw[raw$condition == g, y]
@@ -111,7 +92,6 @@ write_table(subset(descriptive, outcome == "trust_candidate"), "trust_descriptiv
 write.csv(subset(descriptive, outcome != "trust_candidate"),
           file.path(supp, "exploratory_outcome_descriptives.csv"), row.names = FALSE, na = "NA")
 
-# 3. The professor's eight specifications, in the original sequence -----------
 rhs <- c(
   M1 = "red",
   M2 = "red + age_range + gender + political_preference",
@@ -132,9 +112,6 @@ for (id in names(models)) {
   if (!identical(rownames(model.frame(m)), rownames(d))) stop(id, " used a different sample.")
 }
 
-# OLS estimates are identical across covariance choices. HC1 uses n/(n-rank).
-# HC3 divides residuals by (1-h); a unit-leverage row makes the whole estimator
-# undefined. Never replace such corrections or influence diagnostics with zero.
 is_unit <- function(h) 1 - h < 1e-8
 robust_vcov <- function(m, type) {
   X <- model.matrix(m)
@@ -163,8 +140,6 @@ fit_stats <- do.call(rbind, lapply(names(models), function(id) {
 }))
 write_table(fit_stats, "model_fit.csv")
 
-# Use the covariance of the complete linear combination including all covariances.
-# Inference uses two-sided t tests and pointwise intervals with model residual df.
 inference <- function(m, V, L) {
   b <- as.vector(L %*% coef(m))
   variances <- diag(L %*% V %*% t(L))
@@ -188,7 +163,6 @@ coefficients_out <- do.call(rbind, lapply(names(covariances), function(method) {
 }))
 write_table(coefficients_out, "coefficients_all_methods.csv")
 
-# 4. Professor's eight-column table: one model per column, omitted terms blank
 pretty_term <- function(x) {
   x[x == "red"] <- "Red vs blue"
   x[x == "ai"] <- "AI vs non-AI"
@@ -238,14 +212,8 @@ for (method in names(covariances)) {
 html <- c(html, "<p>A coefficient followed by (NA) has undefined HC3 uncertainty because the model contains unit leverage. All eight models use the same respondents.</p></html>")
 writeLines(enc2utf8(html), file.path(tab, "eight_model_tables.html"), useBytes = TRUE)
 
-# 5. Professor's four predictions; project extension to standardized M8 means
-# M6 cell order: b0; b0 + bAI; b0 + bRed; b0 + bRed + bAI + bInteraction.
-# In M6/M8, bAI compares sources under blue and bRed compares colors under non-AI.
-# bInteraction is the red AI gap minus the blue AI gap.
 prediction_design <- function(m) {
   do.call(rbind, lapply(1:4, function(g) {
-    # Clone the entire common sample for each condition; keep all demographics
-    # exactly as observed. Averaging design rows also gives the SE of the mean.
     new <- d
     new$red <- as.integer(g > 2)
     new$ai <- as.integer(g %in% c(2, 4))
@@ -262,8 +230,6 @@ pred <- do.call(rbind, lapply(inter_models, function(id) {
 }))
 write_table(pred, "condition_predictions_HC1.csv")
 
-# Columns below are non-AI/blue, AI/blue, non-AI/red, AI/red, respectively.
-# Contrasts with "equal" in the name give each level of the other factor 50%.
 weights <- rbind(AI_equal_colors = c(-.5,.5,-.5,.5), AI_blue = c(-1,1,0,0),
                  AI_red = c(0,0,-1,1), interaction = c(1,-1,-1,1),
                  red_equal_sources = c(-.5,-.5,.5,.5))
@@ -278,7 +244,6 @@ contrasts_out <- do.call(rbind, lapply(names(covariances), function(method) {
 }))
 write_table(contrasts_out, "direct_contrasts.csv")
 
-# Cross-check estimands by a second route using treatment coefficients directly.
 close_enough <- function(x, y) isTRUE(all.equal(as.numeric(x), as.numeric(y), tolerance = 1e-9))
 cell_means <- as.numeric(tapply(d$trust_candidate, d$cell, mean))
 b6 <- coef(models$M6)
@@ -295,7 +260,7 @@ for (id in inter_models) {
   if (!close_enough(contrasts_out$estimate[rows], direct)) stop(id, " contrast identity failed.")
 }
 
-# 6. Diagnostics and sensitivity, without participant-level public labels -----
+
 diagnostics <- lapply(models[inter_models], function(m) {
   h <- hatvalues(m)
   good <- !is_unit(h)
@@ -316,8 +281,6 @@ diag_summary <- do.call(rbind, lapply(inter_models, function(id) {
 }))
 write_table(diag_summary, "diagnostic_summary.csv")
 
-# Leave-one-out comparison for saturated M6. Replace the affected cell mean by
-# its mean after removing one response. If a cell empties, its contrast is undefined.
 loo <- vapply(seq_len(N), function(i) {
   g <- d$cell[i]
   if (counts[g] < 2) return(NA_real_)
@@ -330,10 +293,6 @@ write_table(data.frame(model = "M6", contrast = "AI_equal_colors", defined_delet
                        undefined_deletions = sum(is.na(loo)), min_estimate = loo_range[1], max_estimate = loo_range[2]),
             "leave_one_out_summary.csv")
 
-# Keep the original script's two secondary source comparisons in their own file.
-# Use available scores for each secondary question and equal weights for colors.
-# Both tests form one exploratory family. Holm adjusts p-values across these two
-# planned outputs; the confidence intervals remain pointwise and unadjusted.
 secondary <- do.call(rbind, lapply(outcomes[-1], function(y) {
   z <- raw[!is.na(raw[[y]]), ]
   z$red <- as.integer(z$background == "red")
@@ -353,7 +312,6 @@ secondary <- do.call(rbind, lapply(outcomes[-1], function(y) {
 secondary$p_holm_two_tests <- p.adjust(secondary$p, method = "holm", n = 2)
 write.csv(secondary, file.path(supp, "exploratory_source_contrasts.csv"), row.names = FALSE, na = "NA")
 
-# 7. Re-read exported tables as the single source of plotted estimates --------
 pred_plot <- read.csv(file.path(tab, "condition_predictions_HC1.csv"))
 contrast_plot <- subset(read.csv(file.path(tab, "direct_contrasts.csv")), method == "HC1")
 coef_plot <- subset(read.csv(file.path(tab, "coefficients_all_methods.csv")), method == "HC1")
@@ -364,8 +322,6 @@ for (field in c("estimate", "se", "lo", "hi")) {
     stop("Exported and in-memory values disagree for ", field)
 }
 
-# Normalized page coordinates reserve independent space for titles, legends,
-# axes and notes on both devices. PDF text and marks stay vector-based.
 ink <- "#162F42"
 muted <- "#475F70"
 gridcol <- "#DDE5E9"
@@ -412,9 +368,6 @@ save_plot <- function(folder, stem, draw, width, height) {
   }
 }
 
-# Main figure 1. Both models share the full response scale. The limits also
-# expand for any calculated intervals beyond 1–10. Horizontal offsets separate
-# the background-specific whiskers at the same source category.
 figure_predictions <- function() {
   title_line("Candidate trust across four advertisement conditions",
              "Predicted mean trust on a 1–10 scale. Whiskers show pointwise 95% HC1 confidence intervals.")
@@ -457,8 +410,6 @@ figure_predictions <- function() {
   txt(.045, .058, "M8 averages over the same respondents in all four conditions. Lines connect source categories.", 12, muted)
 }
 
-# Main figure 2. The printed estimates and plotted positions use identical rows.
-# The symmetric pair of marks around each label separates M6 from M8.
 figure_contrasts <- function() {
   title_line("Direct comparisons of candidate trust",
              "Differences in trust points. Whiskers show pointwise 95% HC1 confidence intervals.")
@@ -506,8 +457,6 @@ figure_contrasts <- function() {
 save_plot(poster, "01_condition_trust", figure_predictions, 10.8, 6.1)
 save_plot(poster, "02_direct_comparisons", figure_contrasts, 11.2, 6.5)
 
-# The eight-model plot has one panel per coefficient. Model rows with a term
-# excluded remain empty. Its axes share a scale to avoid visual exaggeration.
 figure_coefficients <- function() {
   title_line("Treatment coefficients across eight models",
              "OLS estimates in trust points with pointwise 95% HC1 confidence intervals.")
@@ -535,12 +484,9 @@ figure_coefficients <- function() {
 }
 save_plot(supp, "03_eight_model_coefficients", figure_coefficients, 11.2, 6.4)
 
-# Fitted-versus-residual and leverage distributions. The public figure has
-# no respondent labels, demographic coloring, row-level export or ID crosswalk.
 figure_diagnostics <- function() {
   title_line("Residuals and leverage in the trust models",
              "Raw residuals show model fit. Leverage measures how unusual a respondent’s predictors are.")
-  # One shared scale per column. Pad to keep symbols away from the frame.
   all_fit <- unlist(lapply(diagnostics, "[[", "fitted"))
   all_res <- unlist(lapply(diagnostics, "[[", "residual"))
   fx <- pretty(range(all_fit), n = 5)
@@ -582,9 +528,6 @@ figure_diagnostics <- function() {
 }
 save_plot(supp, "04_model_diagnostics", figure_diagnostics, 11.2, 7.1)
 
-# 8. Validation and reproducibility record -----------------------------------
-# Merge workbook reconciliation only when its recorded checksum identifies the
-# exact analysis CSV. A different input never inherits the release's audit claims.
 audit_file <- file.path(dirname(input), "workbook_audit.txt")
 digest <- unname(tools::md5sum(input))
 audit <- if (file.exists(audit_file)) readLines(audit_file, encoding = "UTF-8") else character(0)
@@ -620,8 +563,6 @@ report <- c(audit, "", "ANALYSIS VALIDATION",
             "Random assignment was proposed; implementation, independent participation and timing of controls were not verified.")
 writeLines(enc2utf8(report), file.path(out, "validation_report.txt"), useBytes = TRUE)
 
-# Retain platform, R and package versions. Replace machine-specific library paths
-# occasionally printed for BLAS/LAPACK with basenames in the shareable record.
 session <- capture.output(sessionInfo())
 session <- sub("^(BLAS|LAPACK):[[:space:]]*([^ ]*/)", "\\1: ", session)
 writeLines(session, file.path(out, "session_info.txt"))
